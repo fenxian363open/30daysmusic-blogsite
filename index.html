@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>30天推歌挑战总结</title>
+  <meta name="description" content="30天推歌挑战 · 每天一首歌的故事 · 点击棋盘探索隐藏惊喜" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script>
+    // 提前应用主题，避免刷新时白/暗闪烁
+    (function () {
+      try {
+        var t = localStorage.getItem('site-theme');
+        if (t === 'light' || t === 'dark') {
+          document.documentElement.setAttribute('data-theme', t);
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <a href="#home" class="navbar-brand">
+      <div class="navbar-logo">🎵</div>
+      <span class="navbar-title"><span class="nt-line">30天</span><span class="nt-line">推歌</span><span class="nt-line">挑战</span></span>
+    </a>
+    <ul class="navbar-nav" id="navMenu">
+      <li><a href="#home" class="nav-link active" data-page="home">首页</a></li>
+      <li><a href="#articles" class="nav-link" data-page="articles">碎碎念</a></li>
+      <li><a href="#guestbook" class="nav-link" data-page="guestbook">留言区</a></li>
+    </ul>
+    <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换深 / 浅色"><span id="themeToggleIcon">🌙</span></button>
+  </nav>
+
+  <!-- 主内容区 -->
+  <main>
+    <!-- 首页：翻牌棋盘 -->
+    <section id="home" class="page-section active">
+      <div class="hero">
+        <h1>30天推歌挑战总结</h1>
+        <p>每天一首歌，记录一段故事 · 点击下方棋盘翻转卡片，发现每一天的推荐</p>
+        <div class="hero-cta">
+          <a class="netease-btn" href="https://y.music.163.com/m/user?id=12750379396" target="_blank" rel="noopener">
+            <span class="netease-btn-ico">🎵</span> 弦与路的网易云主页
+          </a>
+          <p class="netease-note">点击上方按钮完成每日任务，懂我意思🫵😎</p>
+        </div>
+      </div>
+
+      <section class="flipboard-section">
+        <h2>✨ 翻牌棋盘</h2>
+        <div class="flipboard-controls">
+          <button class="btn btn-ghost" id="flipBackBtn" title="一键翻回A面">⟳ 全部翻回</button>
+          <button class="btn btn-listen" id="listenBtn" title="">
+            <span class="listen-icon" id="listenIcon"></span>
+            <span id="listenText">去听听这首</span>
+          </button>
+          <button class="btn btn-random" id="guessBtn" title="随机播放一首歌，翻格子猜它是第几天">猜一猜</button>
+          <button class="btn btn-drift" id="driftBtn" title="开启漂流瓶玩法：点格子看这一天大家推荐的歌，也可投下你自己的推荐">漂流瓶</button>
+        </div>
+        <div class="guess-banner" id="guessBanner" hidden>
+          正在播放一首神秘歌曲——翻到对应的格子，猜猜它是第几天？
+        </div>
+        <div class="drift-banner" id="driftBanner" hidden>
+          漂流瓶玩法已开启：点任意一格，看看这一天大家推荐的歌；也可以投下你自己的推荐。
+        </div>
+        <div class="board-wrapper">
+          <div class="board" id="board" role="grid" aria-label="翻转棋盘，共30格"></div>
+        </div>
+        <!-- 棋盘下方玩法提示：点击重新弹出说明弹窗 -->
+        <button class="howto-hint" id="howtoHint" type="button" title="点击查看完整玩法说明">
+          <span class="howto-hint-ico">📖</span>
+          <span>玩法说明</span>
+        </button>
+      </section>
+    </section>
+
+    <!-- 文章列表 -->
+    <section id="articles" class="page-section">
+      <div class="articles-container">
+        <div class="page-header">
+          <h2>💭 碎碎念</h2>
+          <p>记录技术、生活和创意的那些故事</p>
+        </div>
+        <div class="articles-grid" id="articlesGrid"></div>
+      </div>
+    </section>
+
+    <!-- 文章详情 -->
+    <section id="article" class="page-section">
+      <div class="article-detail">
+        <div class="article-detail-header">
+          <h1 class="article-detail-title" id="articleDetailTitle"></h1>
+          <div class="article-detail-meta" id="articleDetailMeta"></div>
+        </div>
+        <div class="article-detail-content" id="articleDetailContent"></div>
+        <div class="article-comments" id="articleComments"></div>
+        <div class="article-back-btn">
+          <button class="btn btn-primary" id="articleBackBtn">← 返回</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 留言区 -->
+    <section id="guestbook" class="page-section">
+      <div class="guestbook-container">
+        <div class="page-header">
+          <h2>💬 留言区</h2>
+          <p>看完这 30 天，想说点什么？留句话吧 ~</p>
+        </div>
+
+        <!-- 留言表单 -->
+        <form class="gb-form" id="gbForm">
+          <textarea class="gb-textarea" id="gbMessage" rows="4" maxlength="500"
+            placeholder="写下你的留言…（最多 500 字）" required></textarea>
+          <div class="gb-form-row">
+            <input class="gb-input" id="gbName" type="text" maxlength="24" placeholder="你的昵称（选填）" />
+            <label class="gb-check" title="不填昵称或勾选此项，将以「匿名访客」显示">
+              <input type="checkbox" id="gbAnon" /> 匿名留言
+            </label>
+          </div>
+          <div class="gb-form-row gb-form-foot">
+            <label class="gb-check gb-private-check" title="悄悄话仅博主可见，不会公开展示">
+              <input type="checkbox" id="gbPrivate" /> 🔒 悄悄话（仅博主可见，不公开展示）
+            </label>
+            <button type="submit" class="gb-submit">发送留言</button>
+          </div>
+        </form>
+
+        <div class="gb-tip" id="gbTip" hidden></div>
+
+        <!-- 公开留言列表 -->
+        <div class="gb-list-head">
+          <span id="gbCount">0 条留言</span>
+        </div>
+        <div class="gb-list" id="gbList"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 歌曲播放：左上角旋转圆 + 常驻内嵌播放器（不随页面切换销毁） -->
+  <div class="music-orb-wrap" id="musicOrbWrap" aria-hidden="true">
+    <button class="music-orb" id="musicOrb" title="当前播放封面（转动 = 播放中）；右侧小方块可暂停 / 继续">
+      <img id="musicOrbImg" alt="当前播放封面" />
+    </button>
+    <div class="music-hidden" id="musicHidden"></div>
+    <button class="music-orb-btn" id="musicOrbClose" aria-label="关闭播放器" title="关闭播放器">✕</button>
+  </div>
+
+  <!-- 页脚 -->
+  <footer>
+    <p>© 2026 30天推歌挑战总结 · 用 ❤️ 记录每一天 · 本地双击 index.html 即可运行</p>
+  </footer>
+
+  <!-- 歌曲弹窗 -->
+  <div class="modal-overlay" id="songModal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-card" id="songModalCard">
+      <button class="modal-close" id="modalClose" aria-label="关闭">×</button>
+      <div class="modal-left">
+        <img id="modalImg" alt="歌曲配图" />
+      </div>
+      <div class="modal-right">
+        <div class="modal-feature" id="modalFeature" hidden></div>
+        <div class="modal-song" id="modalSong"></div>
+        <div class="modal-singer" id="modalSinger"></div>
+        <div class="modal-intro" id="modalIntro"></div>
+        <div class="modal-links" id="modalLinks"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 漂流瓶弹窗（玩法：点棋盘格子看这一天的推荐） -->
+  <div class="modal-overlay" id="driftModal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-card drift-modal-card">
+      <button class="modal-close" id="driftModalClose" aria-label="关闭">×</button>
+      <div class="drift-modal-feature" id="driftModalFeature"></div>
+      <div class="drift-modal-day" id="driftModalDay"></div>
+      <div class="drift-modal-list" id="driftModalList"></div>
+      <form class="drift-modal-form" id="driftModalForm">
+        <input type="hidden" id="driftModalDayVal" value="0" />
+        <input class="drift-input drift-input-song" id="driftModalSong" type="text" maxlength="60" placeholder="推荐曲目（必填）" required />
+        <textarea class="drift-input drift-input-reason" id="driftModalReason" maxlength="120" placeholder="推荐理由（选填）" rows="2"></textarea>
+        <button type="submit" class="drift-btn drift-btn-primary drift-submit-btn" id="driftModalSubmitBtn">投放</button>
+        <div class="gb-tip" id="driftModalTip" hidden></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 署名选择弹窗（点「投放」后独立弹出，纵向排列布局） -->
+  <div class="modal-overlay drift-name-overlay" id="driftNameModal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-card drift-name-card">
+      <p class="drift-name-q">这条漂流瓶要怎么署名？</p>
+      <!-- 初始三选项行 -->
+      <div class="drift-name-options" id="driftNameOptions">
+        <button type="button" class="drift-btn" data-mode="name">填写昵称</button>
+        <button type="button" class="drift-btn" data-mode="anon">匿名投放</button>
+        <button type="button" class="drift-btn drift-name-btn-cancel" id="driftNameInitialCancel">取消</button>
+      </div>
+      <!-- 展开区：输入框（点"填写昵称"后显示） -->
+      <div class="drift-name-input" id="driftNameInputWrap" hidden>
+        <input class="drift-input" id="driftModalName" type="text" maxlength="24" placeholder="你的昵称" />
+      </div>
+      <!-- 展开区：操作按钮（点选项后显示） -->
+      <div class="drift-name-actions" id="driftNameActions" hidden>
+        <button type="button" class="drift-btn drift-btn-primary" id="driftConfirmBtn">确认投放</button>
+        <button type="button" class="drift-btn" id="driftNameActionCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 怎么玩 弹窗（首次打开自动弹出，之后点棋盘下方提示可再次唤起） -->
+  <div class="modal-overlay howto-overlay" id="howtoModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="howtoTitle">
+    <div class="howto-card">
+      <button class="modal-close" id="howtoClose" aria-label="关闭">×</button>
+      <h2 id="howtoTitle">📖 怎么玩</h2>
+      <p class="howto-sub">欢迎来到「30天推歌挑战」小站 · 边翻边听，边玩边分享 🎧</p>
+      <ul class="usage-list">
+        <li><span class="usage-ico">🖱️</span><div><b>翻格子听歌</b>：棋盘里 30 个格子对应 30 天，点任意一格即可翻开卡片，自动播放当天推荐的歌并弹出它的故事。</div></li>
+        <li><span class="usage-ico">⌨️</span><div><b>键盘也能玩</b>：用方向键移动光标，<kbd>空格</kbd> 确认。光标落在棋盘的棋格之后，按 <kbd>空格</kbd> 即可翻牌；在漂流瓶弹窗里用 <kbd>Tab</kbd> 切换输入框与按钮，<kbd>Ctrl</kbd>+<kbd>Enter</kbd> 直接投放；任意弹窗按 <kbd>Esc</kbd> 关闭。</div></li>
+        <li><span class="usage-ico">🎯</span><div><b>猜一猜挑战</b>：点「猜一猜」会随机播放一首神秘歌曲，可以点击棋盘翻牌尝试，猜对会放烟花庆祝并揭晓故事。进行中点「揭晓答案」可直接看答案，答对后点击「再来一轮」能立刻开下一局。</div></li>
+        <li><span class="usage-ico">🍶</span><div><b>漂流瓶</b>：点「漂流瓶」开启玩法，再点任意一格，就能看到这一天大家推荐的歌（每次随机捞一瓶）；也可在底部填「推荐曲目」和「推荐理由」投下你自己的瓶子，投放时再选择匿名或署名。</div></li>
+        <li><span class="usage-ico">🌓</span><div><b>日间 / 夜间模式</b>：右上角 <kbd>🌙/☀️</kbd> 按钮可在深、浅色之间切换，也会自动跟随系统的明暗偏好。</div></li>
+        <li><span class="usage-ico">🎵</span><div><b>常驻播放器</b>：左上角那颗旋转的圆是当前歌曲封面，红色 <b>⏯</b> 点一下即可暂停或继续。切换页面音乐不中断。</div></li>
+        <li><span class="usage-ico">💬</span><div><b>逛逛与留言</b>：顶部「碎碎念」记录了这 30 天背后的碎念与心情，「留言区」可以给我留句话（也能发只有我能看到的悄悄话）。</div></li>
+      </ul>
+      <button class="howto-got-btn" id="howtoGot" type="button">开始探索 →</button>
+    </div>
+  </div>
+
+  <!-- 脚本 -->
+  <script src="js/blog-data.js"></script>
+  <script src="js/markdown.js"></script>
+  <script src="js/cell-texts.js"></script>
+  <script src="js/song-data.js"></script>
+  <script src="js/flipboard.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // 初始化应用
+    document.addEventListener('DOMContentLoaded', () => {
+      BlogApp.init();
+
+      // ===== 主题切换：手动按钮 + 跟随系统（仅未手动选择时） =====
+      (function initThemeToggle() {
+        var KEY = 'site-theme';
+        var root = document.documentElement;
+        var toggle = document.getElementById('themeToggle');
+        var icon = document.getElementById('themeToggleIcon');
+        var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+        function setIcon(theme) {
+          if (!icon) return;
+          icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+          if (toggle) toggle.title = theme === 'dark' ? '当前：深色 · 点此切换为浅色' : '当前：浅色 · 点此切换为深色';
+        }
+        function apply(theme, persist) {
+          root.setAttribute('data-theme', theme);
+          setIcon(theme);
+          if (persist) { try { localStorage.setItem(KEY, theme); } catch (e) {} }
+        }
+
+        var cur = root.getAttribute('data-theme');
+        if (cur !== 'light' && cur !== 'dark') {
+          cur = (mq && mq.matches) ? 'dark' : 'light';
+        }
+        setIcon(cur);
+
+        if (mq) {
+          var onChange = function (e) {
+            var s = null;
+            try { s = localStorage.getItem(KEY); } catch (err) {}
+            if (s !== 'light' && s !== 'dark') {
+              apply(e.matches ? 'dark' : 'light', false);
+            }
+          };
+          if (mq.addEventListener) mq.addEventListener('change', onChange);
+          else if (mq.addListener) mq.addListener(onChange);
+        }
+
+        if (toggle) {
+          toggle.addEventListener('click', function () {
+            var now = root.getAttribute('data-theme');
+            var next = (now === 'dark') ? 'light' : 'dark';
+            apply(next, true);
+          });
+        }
+      })();
+
+      // 翻牌棋盘全部翻回按钮
+      const flipBackBtn = document.getElementById('flipBackBtn');
+      if (flipBackBtn) {
+        flipBackBtn.addEventListener('click', () => {
+          FlipBoard.flipAllBack();
+        });
+      }
+
+      // 根据 URL hash 初始化页面
+      const hash = window.location.hash;
+      if (hash.startsWith('#article-')) {
+        const id = parseInt(hash.replace('#article-', ''), 10);
+        BlogApp.navigateToArticle(id);
+      }
+
+      // ===== 「怎么玩」弹窗：首次打开自动弹出，点棋盘下方提示可再次唤起 =====
+      (function setupHowto() {
+        const modal = document.getElementById('howtoModal');
+        const hint = document.getElementById('howtoHint');
+        if (!modal) return;
+        const closeBtn = document.getElementById('howtoClose');
+        const gotBtn = document.getElementById('howtoGot');
+
+        function openHowto() {
+          modal.classList.remove('closing');
+          modal.classList.add('open');
+          modal.setAttribute('aria-hidden', 'false');
+        }
+        function closeHowto() {
+          modal.classList.add('closing');
+          modal.classList.remove('open');
+          modal.setAttribute('aria-hidden', 'true');
+          setTimeout(() => modal.classList.remove('closing'), 200);
+        }
+
+        if (hint) hint.addEventListener('click', openHowto);
+        if (closeBtn) closeBtn.addEventListener('click', closeHowto);
+        if (gotBtn) gotBtn.addEventListener('click', closeHowto);
+        // 点击遮罩空白处关闭
+        modal.addEventListener('click', (ev) => {
+          if (ev.target === modal) closeHowto();
+        });
+        // Esc 关闭
+        document.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Escape' && modal.classList.contains('open')) closeHowto();
+        });
+
+        // 首次打开页面自动弹出（不在文章详情深链时才弹）
+        if (!window.location.hash.startsWith('#article-')) {
+          setTimeout(openHowto, 350);
+        }
+      })();
+    });
+  </script>
+</body>
+</html>
