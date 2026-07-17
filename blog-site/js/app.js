@@ -251,27 +251,73 @@ const BlogApp = (() => {
     }
   }
 
-  // ===================== 留言区（EdgeOne KV + 边缘函数） =====================
-  const API_BASE = ''; // 相对路径，边缘函数自动挂载到 /api/*
+  // ===================== 留言区 & 漂流瓶（CloudBase 云数据库） =====================
+  const API_BASE = ''; // 相对路径
   
-  // 从 KV 获取公开留言
+  // CloudBase 配置
+  const CB_ENV_ID = 'blog-env-d3gma00zf84737315';
+  // 你在 CloudBase 控制台 → 身份认证 → API Key 管理 → Publishable Key 复制的值
+  const CB_PUB_KEY = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMWRjMzFlLWI0ZDAtNDQ4Yi1hNzZmLWIwY2M2M2Q4MTQ5OCJ9.eyJpc3MiOiJodHRwczovL2Jsb2ctZW52LWQzZ21hMDB6Zjg0NzM3MzE1LmFwLXNoYW5naGFpLnRjYi1hcGkudGVuY2VudGNsb3VkYXBpLmNvbSIsInN1YiI6ImFub24iLCJhdWQiOiJibG9nLWVudi1kM2dtYTAwemY4NDczNzMxNSIsImV4cCI6NDA4Nzk4Nzc0NywiaWF0IjoxNzg0MzA0NTQ3LCJub25jZSI6ImVkSE51RXYwUXYtai0wZnJabmQ4REEiLCJhdF9oYXNoIjoiZWRITnVFdjBRdi1qLTBmclpuZDhEQSIsIm5hbWUiOiJBbm9ueW1vdXMiLCJzY29wZSI6ImFub255bW91cyIsInByb2plY3RfaWQiOiJibG9nLWVudi1kM2dtYTAwemY4NDczNzMxNSIsIm1ldGEiOnsicGxhdGZvcm0iOiJQdWJsaXNoYWJsZUtleSJ9LCJ1c2VyX3R5cGUiOiIiLCJjbGllbnRfdHlwZSI6ImNsaWVudF91c2VyIiwiaXNfc3lzdGVtX2FkbWluIjpmYWxzZX0.YHljKYqB85RQYrGznt-wW7vbnACHfEKiUaLaPnhSgBDDhzoQKVI0dmLzvzh0NaDmfZjdCk2rm1V94XXSAdLuufo1GO6AkETxzaNLB0ms6cJJrVTJAJQLrxLm_jGtlQ30kP7x75GLu31JaE9RbLg_Q9ZuZhdoPR_rlteflP0SzRmuxvMZWR9HWCL7ws5lA6OH3_VnnrYb2GY3Y_q34elVqyTODis6J8m5gRmuPXfxcc0MZ-tz_8ZV1xx5vX8oNczohmKFTK34NHu9uTPWLACxXLd7bzag0gZa8i-i3hJ3RjHc9GXfps982fa9aEwyIMw7ANTuNwiJxS-SytpNso8PJg';
+  
+  // CloudBase SDK（延迟加载）
+  let cbApp = null;
+  
+  async function getCloudBase() {
+    if (cbApp) return cbApp;
+    try {
+      const cloudbase = await import('https://unpkg.com/@cloudbase/js-sdk@latest/dist/index.js');
+      cbApp = cloudbase.init({
+        env: CB_ENV_ID,
+        accessKey: CB_PUB_KEY,
+      });
+      const auth = cbApp.auth();
+      await auth.signInAnonymously();
+    } catch (e) {
+      console.warn('CloudBase SDK 加载失败，使用本地存储:', e);
+      cbApp = null;
+    }
+    return cbApp;
+  }
+
+  // 从 CloudBase 获取公开留言
   async function loadPublicMessages() {
     try {
-      const resp = await fetch(API_BASE + '/api/guestbook');
-      if (!resp.ok) throw new Error('load failed');
-      const list = await resp.json();
-      // 若无留言，不注入测试数据
-      if (!Array.isArray(list) || list.length === 0) {
-        return [];
-      }
-      return list.map(m => Object.assign({ likes: 0, liked: false }, m));
+      const app = await getCloudBase();
+      if (!app) throw new Error('CloudBase not available');
+      const db = app.database();
+      const col = db.collection('guestbook');
+      const res = await col.orderBy('time', 'desc').get();
+      if (!res.data || res.data.length === 0) return [];
+      return res.data.map(m => Object.assign({ likes: 0, liked: false }, m));
     } catch (e) {
-      console.warn('KV load failed, using empty list:', e);
+      console.warn('CloudBase load failed, using empty list:', e);
       return [];
     }
   }
 
-  // 发送留言到 KV
+  // 发送留言到 CloudBase
+  async function submitGuestbook(text, name, isPrivate) {
+    try {
+      const app = await getCloudBase();
+      if (!app) throw new Error('CloudBase not available');
+      const db = app.database();
+      const col = db.collection('guestbook');
+      await col.add({
+        name: name || '匿名访客',
+        text: text.trim(),
+        time: Date.now(),
+        isPrivate: !!isPrivate
+      });
+      return true;
+    } catch (e) {
+      console.error('submit failed:', e);
+      return false;
+    }
+  }
+
+  // 碎碎念评论（TODO: 迁入 CloudBase）
+  function loadComments(articleId) { return []; }
+  function addComment(articleId, entry) {}
   async function submitGuestbook(text, name, isPrivate) {
     try {
       await fetch(API_BASE + '/api/guestbook', {
@@ -395,28 +441,38 @@ const BlogApp = (() => {
     if (privEl) privEl.checked = false;
   }
 
-  // ===================== 漂流瓶（EdgeOne KV + 边缘函数） =====================
-  const DRIFT_NS = 'drift_bottles_v1';
+  // ===================== 漂流瓶（CloudBase 云数据库） =====================
 
-  // 从 KV 获取漂流瓶列表
+  // 从 CloudBase 获取漂流瓶列表
   async function loadDriftBottles() {
     try {
-      const resp = await fetch(API_BASE + '/api/drift');
-      if (!resp.ok) throw new Error('load drift failed');
-      return await resp.json();
+      const app = await getCloudBase();
+      if (!app) throw new Error('CloudBase not available');
+      const db = app.database();
+      const col = db.collection('drift_bottles');
+      const res = await col.orderBy('time', 'desc').get();
+      if (!res.data || res.data.length === 0) return [];
+      return res.data;
     } catch (e) {
       console.warn('drift load failed:', e);
       return [];
     }
   }
 
-  // 投放漂流瓶到 KV
+  // 投放漂流瓶到 CloudBase
   async function submitDriftBottle(day, song, reason, name, anon) {
     try {
-      await fetch(API_BASE + '/api/drift', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ day, song, reason, name, anon, senderName: name })
+      const app = await getCloudBase();
+      if (!app) throw new Error('CloudBase not available');
+      const db = app.database();
+      const col = db.collection('drift_bottles');
+      await col.add({
+        day: parseInt(day, 10) || 0,
+        song: song.trim(),
+        reason: reason || '',
+        name: name || '匿名访客',
+        anon: !!anon,
+        time: Date.now()
       });
       return true;
     } catch (e) {
@@ -428,7 +484,11 @@ const BlogApp = (() => {
   // 删除漂流瓶
   async function deleteDriftBottle(time) {
     try {
-      await fetch(API_BASE + '/api/drift/' + time, { method: 'DELETE' });
+      const app = await getCloudBase();
+      if (!app) throw new Error('CloudBase not available');
+      const db = app.database();
+      const col = db.collection('drift_bottles');
+      await col.where({ time }).remove();
       return true;
     } catch (e) {
       console.error('drift delete failed:', e);
@@ -436,7 +496,7 @@ const BlogApp = (() => {
     }
   }
 
-  // 获取用户自己投的瓶子（本地存储）
+  // 获取用户自己投的瓶子（本地存储，用于删除）
   function loadDriftUser() {
     let list = [];
     try { list = JSON.parse(localStorage.getItem(DRIFT_USER_KEY) || '[]'); } catch (e) { list = []; }
@@ -448,11 +508,9 @@ const BlogApp = (() => {
   const DRIFT_USER_KEY = 'drift_user_local_v1';
 
   function driftPublicPool() {
-    // 只从 KV 获取，不再使用 DRIFT_SEED（测试文案已清空）
+    // 合并 CloudBase 瓶子 + 用户本地投递记录
     return loadDriftBottles().then(list => {
-      // 合并 KV 瓶子 + 用户本地投递记录
       const local = loadDriftUser();
-      // 去重（基于 time）
       const existingTimes = new Set(list.map(x => x.time));
       local.forEach(l => {
         if (!existingTimes.has(l.time)) list.push(l);
