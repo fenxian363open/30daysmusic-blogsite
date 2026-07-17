@@ -251,38 +251,47 @@ const BlogApp = (() => {
     }
   }
 
-  // ===================== 留言区 =====================
-  // 说明：当前用 localStorage 存储，留言仅保存在访客自己的浏览器里（适合本地/演示）。
-  // 待网站上线后，把 loadMessages / saveMessage / savePrivate 三处换成后端接口
-  // （如 Waline / Twikoo / 自建 API）即可实现真正的多人共享留言与「悄悄话」收件箱。
-  const GB_PUBLIC_KEY = 'gb_public_v1';
-  const GB_PRIVATE_KEY = 'gb_private_v1';
-  // 碎碎念评论：按文章 id 存 { [articleId]: [ {name, text, time, anon} ] }
-  const ART_COMMENTS_KEY = 'article_comments_v1';
-
-  // 留言点赞：直接翻该留言的 liked，likes±1，按 time 定位写回
-  function toggleMsgLike(ts) {
-    let list = loadPublicMessages();
-    const m = list.find(x => x.time === ts);
-    if (!m) return null;
-    if (m.liked) { m.liked = false; m.likes = Math.max(0, (m.likes || 0) - 1); }
-    else { m.liked = true; m.likes = (m.likes || 0) + 1; }
-    try { localStorage.setItem(GB_PUBLIC_KEY, JSON.stringify(list)); } catch (e) {}
-    return { likes: m.likes, liked: m.liked };
+  // ===================== 留言区（EdgeOne KV + 边缘函数） =====================
+  const API_BASE = ''; // 相对路径，边缘函数自动挂载到 /api/*
+  
+  // 从 KV 获取公开留言
+  async function loadPublicMessages() {
+    try {
+      const resp = await fetch(API_BASE + '/api/guestbook');
+      if (!resp.ok) throw new Error('load failed');
+      const list = await resp.json();
+      // 若无留言，不注入测试数据
+      if (!Array.isArray(list) || list.length === 0) {
+        return [];
+      }
+      return list.map(m => Object.assign({ likes: 0, liked: false }, m));
+    } catch (e) {
+      console.warn('KV load failed, using empty list:', e);
+      return [];
+    }
   }
 
+  // 发送留言到 KV
+  async function submitGuestbook(text, name, isPrivate) {
+    try {
+      await fetch(API_BASE + '/api/guestbook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, senderName: name, isPrivate })
+      });
+      return true;
+    } catch (e) {
+      console.error('submit failed:', e);
+      return false;
+    }
+  }
+  // 碎碎念评论（TODO: 迁入 KV）
+  // const ART_COMMENTS_KEY = 'article_comments_v1';
   function loadComments(articleId) {
-    let map = {};
-    try { map = JSON.parse(localStorage.getItem(ART_COMMENTS_KEY) || '{}'); } catch (e) { map = {}; }
-    const arr = map[articleId];
-    return Array.isArray(arr) ? arr : [];
+    return [];
   }
   function addComment(articleId, entry) {
-    let map = {};
-    try { map = JSON.parse(localStorage.getItem(ART_COMMENTS_KEY) || '{}'); } catch (e) { map = {}; }
-    if (!Array.isArray(map[articleId])) map[articleId] = [];
-    map[articleId].push(entry);
-    try { localStorage.setItem(ART_COMMENTS_KEY, JSON.stringify(map)); } catch (e) {}
+    // TODO: 迁入 KV
   }
 
 
@@ -299,41 +308,34 @@ const BlogApp = (() => {
       ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
-  // 读取公开留言（若为空，注入一条测试评论用于展示）
-  function loadPublicMessages() {
-    let list = [];
-    try { list = JSON.parse(localStorage.getItem(GB_PUBLIC_KEY) || '[]'); } catch (e) { list = []; }
-    if (!Array.isArray(list) || list.length === 0) {
-      list = [{
-        name: '博主',
-        text: '这是一条测试留言 ~ 欢迎大家看完这 30 天后在这里留句话！可以署名、匿名，也可以发只有我能看到的悄悄话。💛',
-        time: Date.now(),
-        owner: true
-      }];
-      try { localStorage.setItem(GB_PUBLIC_KEY, JSON.stringify(list)); } catch (e) {}
-    }
-    return list.map(m => Object.assign({ likes: 0, liked: false }, m));
-  }
+  // 读取公开留言（调用边缘函数）
+  // loadPublicMessages 已改为 async，这里不需要旧逻辑了
 
   function renderGuestbook() {
     const listEl = document.getElementById('gbList');
     const countEl = document.getElementById('gbCount');
     if (!listEl) return;
-    const list = loadPublicMessages().slice().sort((a, b) => b.time - a.time);
-    if (countEl) countEl.textContent = list.length + ' 条留言';
-    listEl.innerHTML = list.map(m => `
-      <div class="gb-item${m.owner ? ' gb-item-owner' : ''}" tabindex="0" data-ts="${m.time}">
-        <div class="gb-item-head">
-          <span class="gb-avatar">${m.owner ? '🎵' : (m.name && m.name !== '匿名访客' ? escapeHtml(m.name.slice(0, 1)) : '👤')}</span>
-          <span class="gb-item-name">${escapeHtml(m.name || '匿名访客')}${m.owner ? '<span class="gb-owner-badge">博主</span>' : ''}</span>
-          <span class="gb-item-time">${fmtTime(m.time)}</span>
+    loadPublicMessages().then(list => {
+      const sorted = list.slice().sort((a, b) => b.time - a.time);
+      if (countEl) countEl.textContent = sorted.length + ' 条留言';
+      listEl.innerHTML = sorted.map(m => `
+        <div class="gb-item${m.owner ? ' gb-item-owner' : ''}" tabindex="0" data-ts="${m.time}">
+          <div class="gb-item-head">
+            <span class="gb-avatar">${m.owner ? '🎵' : (m.name && m.name !== '匿名访客' ? escapeHtml(m.name.slice(0, 1)) : '👤')}</span>
+            <span class="gb-item-name">${escapeHtml(m.name || '匿名访客')}${m.owner ? '<span class="gb-owner-badge">博主</span>' : ''}</span>
+            <span class="gb-item-time">${fmtTime(m.time)}</span>
+          </div>
+          <div class="gb-item-text">${escapeHtml(m.text)}</div>
+          <button type="button" class="gb-like${m.liked ? ' liked' : ''}" data-ts="${m.time}" title="点赞">
+            <span class="like-heart" aria-hidden="true">❤</span><span class="gb-like-count">${m.likes || 0}</span>
+          </button>
         </div>
-        <div class="gb-item-text">${escapeHtml(m.text)}</div>
-        <button type="button" class="gb-like${m.liked ? ' liked' : ''}" data-ts="${m.time}" title="点赞">
-          <span class="like-heart" aria-hidden="true">❤</span><span class="gb-like-count">${m.likes || 0}</span>
-        </button>
-      </div>
-    `).join('');
+      `).join('');
+    }).catch(err => {
+      console.error('render guestbook error:', err);
+      countEl && (countEl.textContent = '0 条留言');
+      listEl.innerHTML = '<p class="drift-modal-empty">留言加载失败，请稍后重试</p>';
+    });
   }
 
   function showGbTip(msg, kind) {
@@ -363,7 +365,7 @@ const BlogApp = (() => {
     }
   }
 
-  function handleGuestbookSubmit(e) {
+  async function handleGuestbookSubmit(e) {
     e.preventDefault();
     const msgEl = document.getElementById('gbMessage');
     const nameEl = document.getElementById('gbName');
@@ -375,19 +377,13 @@ const BlogApp = (() => {
     const anon = anonEl && anonEl.checked;
     const name = anon ? '匿名访客' : ((nameEl && nameEl.value || '').trim() || '匿名访客');
     const isPrivate = privEl && privEl.checked;
-    const entry = { name, text, time: Date.now() };
+
+    const ok = await submitGuestbook(text, name, isPrivate);
+    if (!ok) { showGbTip('发送失败，请检查网络连接', 'warn'); return; }
 
     if (isPrivate) {
-      // 悄悄话：仅博主可见，不进入公开列表
-      let priv = [];
-      try { priv = JSON.parse(localStorage.getItem(GB_PRIVATE_KEY) || '[]'); } catch (err) { priv = []; }
-      priv.push(entry);
-      try { localStorage.setItem(GB_PRIVATE_KEY, JSON.stringify(priv)); } catch (err) {}
       showGbTip('🔒 悄悄话已发送，仅博主可见，不会公开展示', 'ok');
     } else {
-      let pub = loadPublicMessages();
-      pub.push(entry);
-      try { localStorage.setItem(GB_PUBLIC_KEY, JSON.stringify(pub)); } catch (err) {}
       showGbTip('留言已发布，感谢你的分享！💛', 'ok');
       renderGuestbook();
     }
@@ -399,26 +395,71 @@ const BlogApp = (() => {
     if (privEl) privEl.checked = false;
   }
 
-  // ===================== 漂流瓶（玩法弹窗） =====================
-  // 与留言区一致，用 localStorage 存储（仅保存在访客自己的浏览器里，适合演示）。
-  // 为让游客一来就能看到「其他人留下的推荐」，内置一批预置示例瓶（DRIFT_SEED）；
-  // 上线后若要真实跨用户共享，把 load/save 换成后端接口即可（同留言区注释）。
-  const DRIFT_KEY = 'drift_bottles_v1';
-  const DRIFT_LIKE_KEY = 'drift_likes_v1';
-  const DRIFT_SEED = [
-    { day: 7,  song: '夜空中最亮的星', name: '深夜电台',     reason: '每次走夜路都会想起某个人。', time: 1700000000001 },
-    { day: 1,  song: '我的天空',       name: '阿绿',         reason: '高三晚自习循环过一整年。',   time: 1700000000002 },
-    { day: 3,  song: '后来',           name: '星期天的猫',   reason: '听到前奏就鼻子酸。',         time: 1700000000003 },
-    { day: 4,  song: '从前慢',         name: '时光旅人',     reason: '适合一个人慢慢喝杯茶。',     time: 1700000000004 },
-    { day: 5,  song: '至少还有你',     name: '有心人',       reason: '送给总在身边的那个朋友。',   time: 1700000000005 },
-    { day: 8,  song: '雨过天晴',       name: '双声道',       reason: '阴天听它会亮一点。',         time: 1700000000006 },
-    { day: 14, song: 'K歌之王',        name: 'KTV常客',      reason: '麦霸必点，全场大合唱。',     time: 1700000000007 },
-    { day: 16, song: '晴天',           name: '晒被子的午后', reason: '夏天的味道全在这首里。',     time: 1700000000008 },
-    { day: 18, song: '孤勇者',         name: '深夜电台',     reason: '低谷时给自己打气。',         time: 1700000000009 },
-    { day: 19, song: '生命之诗',       name: '在梦里',       reason: '歌词像在说我自己。',         time: 1700000000010 },
-    { day: 21, song: '平凡之路',       name: '旅人甲',       reason: '自驾出门第一首。',           time: 1700000000011 },
-    { day: 25, song: '小幸运',         name: '校服口袋',     reason: '青春回放键。',               time: 1700000000012 }
-  ];
+  // ===================== 漂流瓶（EdgeOne KV + 边缘函数） =====================
+  const DRIFT_NS = 'drift_bottles_v1';
+
+  // 从 KV 获取漂流瓶列表
+  async function loadDriftBottles() {
+    try {
+      const resp = await fetch(API_BASE + '/api/drift');
+      if (!resp.ok) throw new Error('load drift failed');
+      return await resp.json();
+    } catch (e) {
+      console.warn('drift load failed:', e);
+      return [];
+    }
+  }
+
+  // 投放漂流瓶到 KV
+  async function submitDriftBottle(day, song, reason, name, anon) {
+    try {
+      await fetch(API_BASE + '/api/drift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ day, song, reason, name, anon, senderName: name })
+      });
+      return true;
+    } catch (e) {
+      console.error('drift submit failed:', e);
+      return false;
+    }
+  }
+
+  // 删除漂流瓶
+  async function deleteDriftBottle(time) {
+    try {
+      await fetch(API_BASE + '/api/drift/' + time, { method: 'DELETE' });
+      return true;
+    } catch (e) {
+      console.error('drift delete failed:', e);
+      return false;
+    }
+  }
+
+  // 获取用户自己投的瓶子（本地存储）
+  function loadDriftUser() {
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem(DRIFT_USER_KEY) || '[]'); } catch (e) { list = []; }
+    return Array.isArray(list) ? list : [];
+  }
+  function saveDriftUser(list) {
+    try { localStorage.setItem(DRIFT_USER_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+  const DRIFT_USER_KEY = 'drift_user_local_v1';
+
+  function driftPublicPool() {
+    // 只从 KV 获取，不再使用 DRIFT_SEED（测试文案已清空）
+    return loadDriftBottles().then(list => {
+      // 合并 KV 瓶子 + 用户本地投递记录
+      const local = loadDriftUser();
+      // 去重（基于 time）
+      const existingTimes = new Set(list.map(x => x.time));
+      local.forEach(l => {
+        if (!existingTimes.has(l.time)) list.push(l);
+      });
+      return list;
+    });
+  }
 
   function driftDayLabel(day) {
     if (!day || day < 1) return '这一天';
@@ -430,18 +471,8 @@ const BlogApp = (() => {
     }
     return '';
   }
-  function loadDriftUser() {
-    let list = [];
-    try { list = JSON.parse(localStorage.getItem(DRIFT_KEY) || '[]'); } catch (e) { list = []; }
-    return Array.isArray(list) ? list : [];
-  }
-  function saveDriftUser(list) {
-    try { localStorage.setItem(DRIFT_KEY, JSON.stringify(list)); } catch (e) {}
-  }
-  function driftPublicPool() {
-    return DRIFT_SEED.concat(loadDriftUser());
-  }
-  // 漂流瓶点赞：按「day:song:time」作为瓶子身份，存 { [identity]: {likes, liked} }
+  // 漂流瓶点赞（KV 暂存用户点赞记录到 localStorage，后续可迁入）
+  const DRIFT_LIKE_KEY = 'drift_likes_v1';
   function driftBottleId(b) {
     return (b.day || 0) + ':' + (b.song || '') + ':' + (b.time || 0);
   }
@@ -490,6 +521,10 @@ const BlogApp = (() => {
     return loadDriftUser().some(x => x.time === b.time);
   }
   // 打开某一天的漂流瓶弹窗（由 flipboard.js 漂流瓶玩法点击格子时调用）
+  function isMineBottle(b) {
+    // 检查是否是用户自己投的（比较 time）
+    return loadDriftUser().some(x => x.time === b.time);
+  }
   function openDriftModal(dayIndex) {
     const overlay = document.getElementById('driftModal');
     if (!overlay) return;
@@ -507,32 +542,37 @@ const BlogApp = (() => {
     }
     if (dayValEl) dayValEl.value = String(day);
     closeDriftNameStep();
-    renderDriftModalList(day);
+    renderDriftModalListAsync(day);
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
     const songInput = document.getElementById('driftModalSong');
     if (songInput) songInput.focus();
   }
-  function renderDriftModalList(day) {
+
+  // 渲染漂流瓶列表（从 KV + 本地）
+  async function renderDriftModalListAsync(day) {
     const listEl = document.getElementById('driftModalList');
     if (!listEl) return;
-    const pool = driftPublicPool().filter(b => b && b.song && b.day === day);
-    if (pool.length === 0) {
+    const pool = await driftPublicPool();
+    const filtered = pool.filter(b => b && b.song && b.day === day);
+    if (filtered.length === 0) {
       listEl.innerHTML = '<p class="drift-modal-empty">这一天还没有漂流瓶，来做第一个分享的人吧～</p>';
       return;
     }
-    // 随机捞一瓶：每次点开都重新随机（不缓存），只展示一条
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    listEl.innerHTML = driftBottleCardHtml(pick, { mine: isMineBottle(pick) });
+    const pick = filtered[Math.floor(Math.random() * filtered.length)];
+    const html = driftBottleCardHtml(pick, { mine: isMineBottle(pick) });
+    listEl.innerHTML = html;
     listEl.querySelectorAll('.drift-bottle-del').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const ts = parseInt(btn.dataset.ts, 10);
-        saveDriftUser(loadDriftUser().filter(x => x.time !== ts));
+        await deleteDriftBottle(ts);
+        // 更新本地列表
+        const users = loadDriftUser().filter(x => x.time !== ts);
+        saveDriftUser(users);
         const cur = document.getElementById('driftModalDayVal');
-        renderDriftModalList(cur ? (parseInt(cur.value, 10) || 0) : day);
+        renderDriftModalListAsync(cur ? (parseInt(cur.value, 10) || 0) : day);
       });
     });
-    // 漂流瓶点赞：当前只展示一瓶，直接对该瓶 toggle
     const likeBtn = listEl.querySelector('.drift-bottle-like');
     if (likeBtn) {
       likeBtn.addEventListener('click', (ev) => {
@@ -602,16 +642,21 @@ const BlogApp = (() => {
     if (!pendingDrift) return;
     const name = anon ? '匿名访客' : ((nameVal && nameVal.trim()) || '匿名访客');
     const entry = { day: pendingDrift.day, song: pendingDrift.song, reason: pendingDrift.reason, name: name, anon: anon, time: Date.now() };
-    const list = loadDriftUser();
-    list.push(entry);
-    saveDriftUser(list);
-    showDriftModalTip('漂流瓶已投出，谢谢你的分享！', 'ok');
-    const songEl = document.getElementById('driftModalSong');
-    const reasonEl = document.getElementById('driftModalReason');
-    if (songEl) songEl.value = '';
-    if (reasonEl) reasonEl.value = '';
-    renderDriftModalList(pendingDrift.day);
-    closeDriftNameStep();
+    // 投放到 KV
+    submitDriftBottle(pendingDrift.day, pendingDrift.song, pendingDrift.reason, name, anon).then(async (ok) => {
+      if (!ok) { showDriftModalTip('投放失败，请检查网络', 'warn'); return; }
+      // 同时存一份到 localStorage（用于删除和自己查看）
+      const list = loadDriftUser();
+      list.push(entry);
+      saveDriftUser(list);
+      showDriftModalTip('漂流瓶已投出，谢谢你的分享！', 'ok');
+      const songEl = document.getElementById('driftModalSong');
+      const reasonEl = document.getElementById('driftModalReason');
+      if (songEl) songEl.value = '';
+      if (reasonEl) reasonEl.value = '';
+      renderDriftModalListAsync(pendingDrift.day);
+      closeDriftNameStep();
+    });
   }
   function initDrift() {
     const form = document.getElementById('driftModalForm');
