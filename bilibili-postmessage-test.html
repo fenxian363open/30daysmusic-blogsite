@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B站 Player postMessage 验证 v2</title>
+<style>
+  body{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;max-width:820px;margin:20px auto;padding:0 16px;color:#222}
+  h1{font-size:18px;margin-bottom:6px}
+  .hint{color:#666;font-size:13px;line-height:1.6}
+  code{background:#f1f1f1;padding:1px 5px;border-radius:4px;font-size:12px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .grp{margin:10px 0;padding:8px 10px;border:1px solid #e3e3e3;border-radius:10px}
+  .grp b{font-size:12px;color:#444;display:block;margin-bottom:6px}
+  button{padding:8px 13px;border:1px solid #185FA5;background:#E6F1FB;color:#0C447C;border-radius:8px;cursor:pointer;font-size:13px;margin:2px 0}
+  button:hover{background:#85B7EB}
+  iframe{border:0;border-radius:12px;width:100%;max-width:480px;height:270px;background:#000;display:block;margin:10px 0}
+  #cnt{font-size:15px;font-weight:700;color:#0a0}
+  #log{background:#0c0c0c;color:#7CFC00;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;padding:12px;border-radius:10px;height:280px;overflow:auto;white-space:pre-wrap}
+  .legend{font-size:12px;color:#888;margin-top:8px;line-height:1.7}
+</style>
+</head>
+<body>
+<h1>B站嵌入播放器 postMessage 验证 v2</h1>
+<p class="hint">
+  确认 B站 <code>player.html</code> 是否接收 <code>postMessage</code> 播放/暂停命令，并观察是否回传状态。<br>
+  测试前：<b>先点一下下方 iframe 内部任意位置激活它</b>，再看画面是否在播（静音自动播放）。<br>
+  关键观察：①点 <code>pause</code> 类按钮后，<b>画面是否定格</b>；②上方<b>回传计数</b>是否 &gt; 0。
+</p>
+
+<div style="font-size:14px;margin:10px 0">已收到回传：<span id="cnt">0</span> 条</div>
+
+<iframe id="bv" src="https://player.bilibili.com/player.html?bvid=BV1vMogYqEW7&autoplay=1&muted=1&high_quality=1" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"></iframe>
+
+<div class="grp"><b>格式 A — {command:'pause'|'play'|'toggle'}（社区常用）</b>
+  <div class="row">
+    <button onclick="send({command:'play'})">play</button>
+    <button onclick="send({command:'pause'})">pause</button>
+    <button onclick="send({command:'toggle'})">toggle</button>
+  </div>
+</div>
+
+<div class="grp"><b>格式 B — {action:'play'|'pause'} / {method:'play'|'pause'}</b>
+  <div class="row">
+    <button onclick="send({action:'play'})">action play</button>
+    <button onclick="send({action:'pause'})">action pause</button>
+    <button onclick="send({method:'play'})">method play</button>
+    <button onclick="send({method:'pause'})">method pause</button>
+  </div>
+</div>
+
+<div class="grp"><b>格式 C — YouTube 风格 {event:'command',func:'playVideo'|'pauseVideo'}</b>
+  <div class="row">
+    <button onclick="send({event:'command',func:'playVideo'})">func playVideo</button>
+    <button onclick="send({event:'command',func:'pauseVideo'})">func pauseVideo</button>
+  </div>
+</div>
+
+<div class="grp"><b>格式 D — 直播 setPlayer- 字符串</b>
+  <div class="row">
+    <button onclick="sendString('setPlayer-'+JSON.stringify({type:'play',value:false}))">setPlayer pause</button>
+    <button onclick="sendString('setPlayer-'+JSON.stringify({type:'play',value:true}))">setPlayer play</button>
+  </div>
+</div>
+
+<div class="row">
+  <button onclick="clearLog()">清空日志</button>
+</div>
+
+<div id="log"></div>
+<p class="legend">
+  判读：<br>
+  • 若某格式让<b>画面定格</b>且<b>回传计数 &gt; 0</b> → 双向同步可行（路线 A，圆能真停）。<br>
+  • 若<b>画面定格但计数 = 0</b> → 命令有效但不回传，走乐观更新（圆停、B站大概率也停，但不 100% 确认）。<br>
+  • 若<b>画面不停且计数 = 0</b> → 此路在当前 B站版本不通，圆只能常转。
+</p>
+
+<script>
+const iframe = document.getElementById('bv');
+const logEl = document.getElementById('log');
+const cntEl = document.getElementById('cnt');
+let recvCnt = 0;
+function log(msg){ logEl.textContent += msg + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+function clearLog(){ logEl.textContent = ''; recvCnt = 0; cntEl.textContent = '0'; }
+
+function send(obj){
+  const target = iframe.contentWindow;
+  if(!target){ log('iframe 未就绪'); return; }
+  target.postMessage(obj, '*');
+  log('→ 发送: ' + JSON.stringify(obj));
+}
+function sendString(str){
+  iframe.contentWindow.postMessage(str, '*');
+  log('→ 发送: ' + str);
+}
+
+window.addEventListener('message', (e)=>{
+  recvCnt++; cntEl.textContent = recvCnt;
+  const src = e.origin || '(无 origin)';
+  let data;
+  try { data = (typeof e.data === 'string') ? e.data : JSON.stringify(e.data); }
+  catch(_){ data = String(e.data); }
+  log('← 收到 #' + recvCnt + ' | origin=' + src + ' | data=' + data);
+});
+
+iframe.addEventListener('load', ()=> log('iframe 加载完成。请先点一下 iframe 内部激活，再发命令观察画面与计数。'));
+log('页面就绪，等待 iframe 加载…');
+</script>
+</body>
+</html>
