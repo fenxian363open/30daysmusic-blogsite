@@ -7,7 +7,7 @@
 ---
 
 ## 你已具备的条件
-- GitHub 仓库 `fenxian363open/30daysmusic-blogsite`（代码已就位，envId 为占位符 `REPLACE_WITH_VERCEL_TWIKOO_URL`）
+- GitHub 仓库 `fenxian363open/30daysmusic-blogsite`（代码已就位，envId 已填为 `https://30daysmusic.vercel.app`）
 - MongoDB Atlas 连接串（已验证可连通）：
   ```
   mongodb+srv://30daysmusic:WqLk7kTiFBCWW291@30daysmusic.4alz1l6.mongodb.net/?appName=30daysmusic
@@ -55,14 +55,11 @@
 
 ---
 
-## 第三步：填入 envId（由我代劳，你只需发我 Vercel 域名）
+## 第三步：envId 已填好（无需你操作）
 
-把第一步拿到的 Vercel 域名（`https://xxx.vercel.app`）发我，我会：
-- 把 `blog-site/index.html` 和单文件 HTML 里的 `REPLACE_WITH_VERCEL_TWIKOO_URL` 替换为该地址
-- 重新打包 `blog-site.zip`
-- 提交并推送 → Cloudflare Pages 自动重新部署
+Vercel 域名 `https://30daysmusic.vercel.app` 已写入 `blog-site/index.html` 和单文件 HTML，并已提交推送。Cloudflare Pages 连着仓库，会自动重新部署，你不用碰任何代码。
 
-你无需碰任何代码。
+> 注意：AI 沙箱网络无法访问 `vercel.app`（连接超时），所以后端健康状态请你从**自己的浏览器/网络**验证（见文末「验证」）。
 
 ---
 

@@ -4518,9 +4518,8 @@ const FlipBoard = (() => {
   <!-- Twikoo 评论系统（CDN，defer 保证在 app.js 之前加载） -->
   <script src="https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.all.min.js" defer></script>
   <script>
-    // Twikoo 后端地址：部署到 Vercel（官方 twikoo-vercel）后，把下方占位替换为你的 Vercel 域名
-    // 形如：https://<你的 vercel 项目>.vercel.app
-    window.TWIKOO_ENV_ID = 'REPLACE_WITH_VERCEL_TWIKOO_URL';
+    // Twikoo 后端地址：部署到 Vercel（官方 twikoo-vercel），指向函数根域名
+    window.TWIKOO_ENV_ID = 'https://30daysmusic.vercel.app';
   </script>
   <script>
 /* ===================== 博客应用主模块 ===================== */
