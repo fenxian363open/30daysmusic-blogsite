@@ -42,11 +42,16 @@
 
 ### 第 4 步：拿函数地址，填回前端并重新部署
 1. 部署成功后，你的站点地址形如 `https://<你的站点名>.netlify.app`。
-2. 打开浏览器访问函数地址验证后端：
+2. 用 curl 做一次真实的后端健康检查（直接浏览器 GET 即使健康也多半只返回空/报错，**不是**验证手段）：
+   ```bash
+   curl -X POST https://<你的站点名>.netlify.app/.netlify/functions/twikoo \
+     -H "Content-Type: application/json" \
+     -d '{"event":"GET_COMMENT","url":"/","limit":1}'
    ```
-   https://<你的站点名>.netlify.app/.netlify/functions/twikoo
-   ```
-   看到 **“Twikoo 云函数运行正常”** 即为成功。
+   - 返回 `{"code":0,"data":[...]}` 或 `{"code":0,"data":[]}` → **后端健康，MongoDB 已连通** ✅
+   - 返回 `{"code":1000,"message":"未设置环境变量 MONGODB_URI"}` → 环境变量没配好
+   - 返回 `{"code":1000,"message":"bad auth : authentication failed"}` → **MongoDB 账号/密码/连接串格式错误**（见下方排错）
+3. 把 `TWIKOO_ENV_ID` 填好后（见下），最可靠的验证是在博客页面提交一条测试评论，能正常显示即全链路打通。
 3. 编辑 `blog-site/index.html`，把这一行的占位替换成上面的函数地址：
    ```js
    window.TWIKOO_ENV_ID = 'https://<你的站点名>.netlify.app/.netlify/functions/twikoo';
@@ -65,6 +70,19 @@
 2. 首次进入会提示**设置管理员密码**，设好后即可登录管理评论（置顶/删除/导出/垃圾拦截等）。
 
 ---
+
+## 排错：bad auth : authentication failed（code 1000）
+> 在 Netlify 函数地址直接看到 `{"code":1000,"message":"bad auth : authentication failed"}`，**不是 Twikoo 鉴权失败，而是 MongoDB Atlas 拒绝了数据库登录**。它证明：函数已部署 ✅、MONGODB_URI 已设置 ✅，但连接串里的凭据有问题 ❌。
+
+按优先级排查：
+1. **账号密码**：MongoDB Atlas → *Database Access*，确认用户名存在、密码正确、角色至少 `readWrite`（建议 `readWriteAnyDatabase`）。
+2. **连接串格式（最常见坑）**：去 *Clusters → Connect → Drivers* 复制官方连接串
+   `mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority`，把 `<password>` 换成真实密码。
+   ⚠️ 密码含 `@ : / ? # & %` 等字符**必须 URL 编码**：`@`→`%40`、`:`→`%3A`、`#`→`%23`、`/`→`%2F`、`?`→`%3F`、`&`→`%26`。
+3. **IP 白名单**：*Network Access* → 加 `0.0.0.0/0`（Allow access from anywhere），确认状态 Active。
+4. **改完必须重新部署**：Netlify → 站点 *Deploys* → **Redeploy** 或改环境变量后触发新部署，否则新 MONGODB_URI 不生效。
+5. 若你**手动设过 `ACCESS_TOKEN` 环境变量**：确认前端未传错；Twikoo 不强制要求，无把握就删掉它。
+修好后用上面的 curl 命令复查，返回 `code:0` 即连通。
 
 ## 说明与注意
 - **原有 localStorage 留言不会迁移**：Twikoo 是全新的评论库，从零开始。
