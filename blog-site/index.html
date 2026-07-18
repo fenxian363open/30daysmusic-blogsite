@@ -213,11 +213,13 @@
   <script src="js/cell-texts.js"></script>
   <script src="js/song-data.js"></script>
   <script src="js/flipboard.js"></script>
-  <!-- Twikoo 评论系统（CDN，defer 保证在 app.js 之前加载） -->
-  <script src="https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.all.min.js" defer></script>
+  <!-- Twikoo 评论系统（国内 CDN 镜像，defer 保证在 app.js 之前加载） -->
+  <script src="https://registry.npmmirror.com/twikoo/1.7.14/files/dist/twikoo.all.min.js" defer></script>
   <script>
-    // Twikoo 后端地址：部署到 Vercel（官方 twikoo-vercel），指向函数根域名
-    window.TWIKOO_ENV_ID = 'https://30daysmusic.vercel.app';
+    // Twikoo 后端：腾讯云 CloudBase（云开发）。envId 填环境 ID（非 URL）
+    window.TWIKOO_ENV_ID = 'blog-env-d3gma00zf84737315';
+    // 环境地域：上海填 'ap-shanghai'（默认）；广州改为 'ap-guangzhou'
+    window.TWIKOO_REGION = 'ap-shanghai';
   </script>
   <script src="js/app.js"></script>
   <script>

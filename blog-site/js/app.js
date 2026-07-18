@@ -167,7 +167,7 @@ const BlogApp = (() => {
   // 已交由 Twikoo 接管（见 initTwikooArticle），原本地评论逻辑已移除。
 
   // ===================== 评论区（Twikoo 评论系统） =====================
-  // 后端：Vercel 云函数（官方 twikoo-vercel 模板），数据存 MongoDB Atlas。
+  // 后端：腾讯云 CloudBase（云开发）云函数，数据存 CloudBase 自带数据库（无需 MongoDB Atlas）。
   // 前端 envId 在 index.html 的 window.TWIKOO_ENV_ID 中配置。
   const TWIKOO_ENV = window.TWIKOO_ENV_ID;
 
@@ -180,7 +180,7 @@ const BlogApp = (() => {
   function initTwikooGuestbook() {
     if (!twikooReady()) return;
     try {
-      twikoo.init({ envId: TWIKOO_ENV, el: '#tcomment', path: '/guestbook', lang: 'zh-CN' });
+      twikoo.init({ envId: TWIKOO_ENV, el: '#tcomment', path: '/guestbook', lang: 'zh-CN', region: window.TWIKOO_REGION });
     } catch (e) {
       console.warn('Twikoo 留言区初始化失败:', e);
     }
@@ -195,7 +195,8 @@ const BlogApp = (() => {
         envId: TWIKOO_ENV,
         el: container.querySelector('.tcomment-article'),
         path: '/article/' + articleId,
-        lang: 'zh-CN'
+        lang: 'zh-CN',
+        region: window.TWIKOO_REGION
       });
     } catch (e) {
       console.warn('Twikoo 文章评论初始化失败:', e);

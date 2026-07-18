@@ -4516,10 +4516,12 @@ const FlipBoard = (() => {
 
 </script>
   <!-- Twikoo 评论系统（CDN，defer 保证在 app.js 之前加载） -->
-  <script src="https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.all.min.js" defer></script>
+  <script src="https://registry.npmmirror.com/twikoo/1.7.14/files/dist/twikoo.all.min.js" defer></script>
   <script>
-    // Twikoo 后端地址：部署到 Vercel（官方 twikoo-vercel），指向函数根域名
-    window.TWIKOO_ENV_ID = 'https://30daysmusic.vercel.app';
+    // Twikoo 后端：腾讯云 CloudBase（云开发）。envId 填环境 ID（非 URL）
+    window.TWIKOO_ENV_ID = 'blog-env-d3gma00zf84737315';
+    // 环境地域：上海填 'ap-shanghai'（默认）；广州改为 'ap-guangzhou'
+    window.TWIKOO_REGION = 'ap-shanghai';
   </script>
   <script>
 /* ===================== 博客应用主模块 ===================== */
@@ -4691,7 +4693,7 @@ const BlogApp = (() => {
   // 已交由 Twikoo 接管（见 initTwikooArticle），原本地评论逻辑已移除。
 
   // ===================== 评论区（Twikoo 评论系统） =====================
-  // 后端：Vercel 云函数（官方 twikoo-vercel 模板），数据存 MongoDB Atlas。
+  // 后端：腾讯云 CloudBase（云开发）云函数，数据存 CloudBase 自带数据库（无需 MongoDB Atlas）。
   // 前端 envId 在 index.html 的 window.TWIKOO_ENV_ID 中配置。
   const TWIKOO_ENV = window.TWIKOO_ENV_ID;
 
@@ -4704,7 +4706,7 @@ const BlogApp = (() => {
   function initTwikooGuestbook() {
     if (!twikooReady()) return;
     try {
-      twikoo.init({ envId: TWIKOO_ENV, el: '#tcomment', path: '/guestbook', lang: 'zh-CN' });
+      twikoo.init({ envId: TWIKOO_ENV, el: '#tcomment', path: '/guestbook', lang: 'zh-CN', region: window.TWIKOO_REGION });
     } catch (e) {
       console.warn('Twikoo 留言区初始化失败:', e);
     }
@@ -4719,7 +4721,8 @@ const BlogApp = (() => {
         envId: TWIKOO_ENV,
         el: container.querySelector('.tcomment-article'),
         path: '/article/' + articleId,
-        lang: 'zh-CN'
+        lang: 'zh-CN',
+        region: window.TWIKOO_REGION
       });
     } catch (e) {
       console.warn('Twikoo 文章评论初始化失败:', e);
