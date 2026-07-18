@@ -112,31 +112,8 @@
           <p>看完这 30 天，想说点什么？留句话吧 ~</p>
         </div>
 
-        <!-- 留言表单 -->
-        <form class="gb-form" id="gbForm">
-          <textarea class="gb-textarea" id="gbMessage" rows="4" maxlength="500"
-            placeholder="写下你的留言…（最多 500 字）" required></textarea>
-          <div class="gb-form-row">
-            <input class="gb-input" id="gbName" type="text" maxlength="24" placeholder="你的昵称（选填）" />
-            <label class="gb-check" title="不填昵称或勾选此项，将以「匿名访客」显示">
-              <input type="checkbox" id="gbAnon" /> 匿名留言
-            </label>
-          </div>
-          <div class="gb-form-row gb-form-foot">
-            <label class="gb-check gb-private-check" title="悄悄话仅博主可见，不会公开展示">
-              <input type="checkbox" id="gbPrivate" /> 🔒 悄悄话（仅博主可见，不公开展示）
-            </label>
-            <button type="submit" class="gb-submit">发送留言</button>
-          </div>
-        </form>
-
-        <div class="gb-tip" id="gbTip" hidden></div>
-
-        <!-- 公开留言列表 -->
-        <div class="gb-list-head">
-          <span id="gbCount">0 条留言</span>
-        </div>
-        <div class="gb-list" id="gbList"></div>
+        <!-- Twikoo 评论区（由 app.js 初始化，envId 见脚本区配置） -->
+        <div id="tcomment"></div>
       </div>
     </section>
   </main>
@@ -224,7 +201,7 @@
         <li><span class="usage-ico">🍶</span><div><b>漂流瓶</b>：点「漂流瓶」开启玩法，再点任意一格，就能看到这一天大家推荐的歌（每次随机捞一瓶）；也可在底部填「推荐曲目」和「推荐理由」投下你自己的瓶子，投放时再选择匿名或署名。</div></li>
         <li><span class="usage-ico">🌓</span><div><b>日间 / 夜间模式</b>：右上角 <kbd>🌙/☀️</kbd> 按钮可在深、浅色之间切换，也会自动跟随系统的明暗偏好。</div></li>
         <li><span class="usage-ico">🎵</span><div><b>常驻播放器</b>：左上角那颗旋转的圆是当前歌曲封面，红色 <b>⏯</b> 点一下即可暂停或继续。切换页面音乐不中断。</div></li>
-        <li><span class="usage-ico">💬</span><div><b>逛逛与留言</b>：顶部「碎碎念」记录了这 30 天背后的碎念与心情，「留言区」可以给我留句话（也能发只有我能看到的悄悄话）。</div></li>
+        <li><span class="usage-ico">💬</span><div><b>逛逛与留言</b>：顶部「碎碎念」记录了这 30 天背后的碎念与心情，「留言区」可以给我留句话，所有留言公开展示、跨设备同步。</div></li>
       </ul>
       <button class="howto-got-btn" id="howtoGot" type="button">开始探索 →</button>
     </div>
@@ -236,6 +213,13 @@
   <script src="js/cell-texts.js"></script>
   <script src="js/song-data.js"></script>
   <script src="js/flipboard.js"></script>
+  <!-- Twikoo 评论系统（CDN，defer 保证在 app.js 之前加载） -->
+  <script src="https://cdn.jsdelivr.net/npm/twikoo@1.6.41/dist/twikoo.all.min.js" defer></script>
+  <script>
+    // Twikoo 后端云函数地址：部署到 Netlify 后，把下方占位替换为你的函数 URL
+    // 形如：https://<你的站点>.netlify.app/.netlify/functions/twikoo
+    window.TWIKOO_ENV_ID = 'REPLACE_WITH_NETLIFY_FUNCTION_URL';
+  </script>
   <script src="js/app.js"></script>
   <script>
     // 初始化应用

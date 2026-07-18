@@ -158,140 +158,49 @@ const BlogApp = (() => {
         contentEl.appendChild(back);
       }
     }
-    // 碎碎念评论区：在正文之后渲染（表单 + 列表，按文章 id 持久化）
+    // 碎碎念评论区：由 Twikoo 接管，每篇文章用独立 path（/article/<id>）
     const commentsEl = document.getElementById('articleComments');
-    if (commentsEl) renderComments(article.id, commentsEl);
+    if (commentsEl) initTwikooArticle(article.id, commentsEl);
   }
 
   // ===================== 碎碎念评论区 =====================
-  // 仿留言区：列表展示 + 评论表单。表单交互仿漂流瓶署名弹窗的纵向展开——
-  // 内容输入框右侧有「匿名提交」「署名提交」；点署名提交才在下方展开昵称输入框 + 确认/取消。
-  function renderComments(articleId, container) {
-    if (!container) return;
-    const list = loadComments(articleId).slice().sort((a, b) => a.time - b.time);
-    const count = list.length;
-    let html = '<div class="article-comments-head">💬 评论（' + count + '）</div>';
-    if (count === 0) {
-      html += '<div class="article-comments-empty">还没有评论，来抢沙发吧～</div>';
-    } else {
-      html += '<div class="article-comment-list">';
-      list.forEach(c => {
-        const name = c.anon ? '匿名访客' : (c.name || '匿名访客');
-        const avatar = (name && name !== '匿名访客') ? escapeHtml(name.slice(0, 1)) : '👤';
-        html += '<div class="gb-item article-comment-item">' +
-          '<div class="gb-item-head">' +
-            '<span class="gb-avatar">' + avatar + '</span>' +
-            '<span class="gb-item-name">' + escapeHtml(name) + '</span>' +
-            '<span class="gb-item-time">' + fmtTime(c.time) + '</span>' +
-          '</div>' +
-          '<div class="gb-item-text">' + escapeHtml(c.text) + '</div>' +
-        '</div>';
-      });
-      html += '</div>';
-    }
-    // 评论表单
-    html += '<div class="article-comment-form">' +
-      '<div class="article-comment-row">' +
-        '<textarea class="gb-textarea article-comment-input" id="artCommentInput" rows="2" maxlength="500" placeholder="写下你的评论…（最多 500 字）"></textarea>' +
-        '<div class="article-comment-submits">' +
-          '<button type="button" class="btn btn-drift art-anon-btn" id="artAnonBtn">匿名提交</button>' +
-          '<button type="button" class="btn btn-primary art-name-btn" id="artNameBtn">署名提交</button>' +
-        '</div>' +
-      '</div>' +
-      '<div class="article-comment-name-row" id="artNameRow" hidden>' +
-        '<input class="gb-input article-comment-name" id="artNameInput" type="text" maxlength="24" placeholder="填写昵称" />' +
-        '<div class="article-comment-name-submits">' +
-          '<button type="button" class="btn btn-primary art-confirm-btn" id="artConfirmBtn">确认提交</button>' +
-          '<button type="button" class="btn art-cancel-btn" id="artCancelBtn">取消</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-    container.innerHTML = html;
+  // 已交由 Twikoo 接管（见 initTwikooArticle），原本地评论逻辑已移除。
 
-    const input = container.querySelector('#artCommentInput');
-    const anonBtn = container.querySelector('#artAnonBtn');
-    const nameBtn = container.querySelector('#artNameBtn');
-    const nameRow = container.querySelector('#artNameRow');
-    const nameInput = container.querySelector('#artNameInput');
-    const confirmBtn = container.querySelector('#artConfirmBtn');
-    const cancelBtn = container.querySelector('#artCancelBtn');
+  // ===================== 评论区（Twikoo 评论系统） =====================
+  // 后端：Netlify 云函数（netlify/functions/twikoo），数据存 MongoDB。
+  // 前端 envId 在 index.html 的 window.TWIKOO_ENV_ID 中配置。
+  const TWIKOO_ENV = window.TWIKOO_ENV_ID;
 
-    function submitComment(name, anon) {
-      const text = (input && input.value || '').trim();
-      if (!text) { if (input) input.focus(); return false; }
-      addComment(articleId, { name: name, text: text, time: Date.now(), anon: anon });
-      renderComments(articleId, container); // 重渲（含新列表 + 重置表单）
-      return true;
-    }
-
-    if (anonBtn) anonBtn.addEventListener('click', () => { submitComment('匿名访客', true); });
-    if (nameBtn) nameBtn.addEventListener('click', () => {
-      if (nameRow) nameRow.hidden = false;
-      if (nameInput) setTimeout(() => nameInput.focus(), 0);
-    });
-    if (confirmBtn) confirmBtn.addEventListener('click', () => {
-      const nm = (nameInput && nameInput.value || '').trim();
-      const ok = submitComment(nm || '匿名访客', false);
-      if (ok && nameRow) { nameRow.hidden = true; if (nameInput) nameInput.value = ''; }
-    });
-    if (cancelBtn) cancelBtn.addEventListener('click', () => {
-      if (nameRow) nameRow.hidden = true;
-      if (nameInput) nameInput.value = '';
-    });
-    // 昵称输入框 Enter → 确认提交
-    if (nameInput) nameInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); if (confirmBtn) confirmBtn.click(); }
-    });
-    // 评论内容框 Ctrl/Cmd+Enter → 匿名提交
-    if (input) {
-      input.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (anonBtn) anonBtn.click(); }
-      });
-      autoGrowTextarea(input);
-    }
+  // 是否就绪：CDN 已加载 且 envId 已配置（非占位符）
+  function twikooReady() {
+    return !!window.twikoo && !!TWIKOO_ENV && TWIKOO_ENV.indexOf('REPLACE') === -1;
   }
 
-  // ===================== 留言区 & 漂流瓶（localStorage 纯前端存储） =====================
-  // 说明：当前用浏览器 localStorage 存储，留言/漂流瓶仅保存在访客自己的浏览器里（适合本地/演示）。
-  // 如需跨用户共享数据，请改用后端方案（后续新方向讨论）。
-
-  // 留言区存储 key
-  const GB_PUBLIC_KEY = 'gb_public_v1';
-  const GB_PRIVATE_KEY = 'gb_private_v1';
-
-  function readGuestbook(key) {
+  // 留言区评论（固定 path: /guestbook）
+  function initTwikooGuestbook() {
+    if (!twikooReady()) return;
     try {
-      const arr = JSON.parse(localStorage.getItem(key) || '[]');
-      return Array.isArray(arr) ? arr : [];
-    } catch (e) { return []; }
-  }
-  function writeGuestbook(key, list) {
-    try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+      twikoo.init({ envId: TWIKOO_ENV, el: '#tcomment', path: '/guestbook', lang: 'zh-CN' });
+    } catch (e) {
+      console.warn('Twikoo 留言区初始化失败:', e);
+    }
   }
 
-  // 从 localStorage 获取公开留言
-  async function loadPublicMessages() {
-    const list = readGuestbook(GB_PUBLIC_KEY);
-    return list.map(m => Object.assign({ likes: 0, liked: false, owner: false }, m));
+  // 文章评论：每篇文章独立 path（/article/<id>），每次打开文章时挂载
+  function initTwikooArticle(articleId, container) {
+    if (!container || !twikooReady()) return;
+    try {
+      container.innerHTML = '<div class="tcomment-article"></div>';
+      twikoo.init({
+        envId: TWIKOO_ENV,
+        el: container.querySelector('.tcomment-article'),
+        path: '/article/' + articleId,
+        lang: 'zh-CN'
+      });
+    } catch (e) {
+      console.warn('Twikoo 文章评论初始化失败:', e);
+    }
   }
-
-  // 发送留言（保存到自己浏览器：公开/私密）
-  async function submitGuestbook(text, name, isPrivate) {
-    const key = isPrivate ? GB_PRIVATE_KEY : GB_PUBLIC_KEY;
-    const list = readGuestbook(key);
-    list.push({
-      name: name || '匿名访客',
-      text: text.trim(),
-      time: Date.now(),
-      isPrivate: !!isPrivate
-    });
-    writeGuestbook(key, list);
-    return true;
-  }
-
-  // 碎碎念评论（占位：当前未启用独立存储）
-  function loadComments(articleId) { return []; }
-  function addComment(articleId, entry) {}
 
 
   function escapeHtml(s) {
@@ -307,45 +216,7 @@ const BlogApp = (() => {
       ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
-  // 读取公开留言（调用边缘函数）
-  // loadPublicMessages 已改为 async，这里不需要旧逻辑了
-
-  function renderGuestbook() {
-    const listEl = document.getElementById('gbList');
-    const countEl = document.getElementById('gbCount');
-    if (!listEl) return;
-    loadPublicMessages().then(list => {
-      const sorted = list.slice().sort((a, b) => b.time - a.time);
-      if (countEl) countEl.textContent = sorted.length + ' 条留言';
-      listEl.innerHTML = sorted.map(m => `
-        <div class="gb-item${m.owner ? ' gb-item-owner' : ''}" tabindex="0" data-ts="${m.time}">
-          <div class="gb-item-head">
-            <span class="gb-avatar">${m.owner ? '🎵' : (m.name && m.name !== '匿名访客' ? escapeHtml(m.name.slice(0, 1)) : '👤')}</span>
-            <span class="gb-item-name">${escapeHtml(m.name || '匿名访客')}${m.owner ? '<span class="gb-owner-badge">博主</span>' : ''}</span>
-            <span class="gb-item-time">${fmtTime(m.time)}</span>
-          </div>
-          <div class="gb-item-text">${escapeHtml(m.text)}</div>
-          <button type="button" class="gb-like${m.liked ? ' liked' : ''}" data-ts="${m.time}" title="点赞">
-            <span class="like-heart" aria-hidden="true">❤</span><span class="gb-like-count">${m.likes || 0}</span>
-          </button>
-        </div>
-      `).join('');
-    }).catch(err => {
-      console.error('render guestbook error:', err);
-      countEl && (countEl.textContent = '0 条留言');
-      listEl.innerHTML = '<p class="drift-modal-empty">留言加载失败，请稍后重试</p>';
-    });
-  }
-
-  function showGbTip(msg, kind) {
-    const tip = document.getElementById('gbTip');
-    if (!tip) return;
-    tip.textContent = msg;
-    tip.className = 'gb-tip' + (kind ? ' ' + kind : '');
-    tip.hidden = false;
-    clearTimeout(showGbTip._t);
-    showGbTip._t = setTimeout(() => { tip.hidden = true; }, 3600);
-  }
+  // 留言区渲染已交由 Twikoo 接管（见 initTwikooGuestbook）。
 
   // 留言框自动撑高：输入框下限随内容向下推进，第一行始终在框内；
   // 高度不超过视口上限，超出后内部滚到最底，保证最后一行始终在画面内。
@@ -364,35 +235,7 @@ const BlogApp = (() => {
     }
   }
 
-  async function handleGuestbookSubmit(e) {
-    e.preventDefault();
-    const msgEl = document.getElementById('gbMessage');
-    const nameEl = document.getElementById('gbName');
-    const anonEl = document.getElementById('gbAnon');
-    const privEl = document.getElementById('gbPrivate');
-    const text = (msgEl && msgEl.value || '').trim();
-    if (!text) { showGbTip('留言不能为空哦～', 'warn'); return; }
-
-    const anon = anonEl && anonEl.checked;
-    const name = anon ? '匿名访客' : ((nameEl && nameEl.value || '').trim() || '匿名访客');
-    const isPrivate = privEl && privEl.checked;
-
-    const ok = await submitGuestbook(text, name, isPrivate);
-    if (!ok) { showGbTip('发送失败，请检查网络连接', 'warn'); return; }
-
-    if (isPrivate) {
-      showGbTip('🔒 悄悄话已发送，仅博主可见，不会公开展示', 'ok');
-    } else {
-      showGbTip('留言已发布，感谢你的分享！💛', 'ok');
-      renderGuestbook();
-    }
-
-    // 重置表单
-    if (msgEl) { msgEl.value = ''; autoGrowTextarea(msgEl); }
-    if (nameEl) nameEl.value = '';
-    if (anonEl) anonEl.checked = false;
-    if (privEl) privEl.checked = false;
-  }
+  // 留言提交已交由 Twikoo 接管（无需本地逻辑）。
 
   // ===================== 漂流瓶（localStorage 纯前端存储） =====================
   // 漂流瓶共享池：当前存于访客自己浏览器的 localStorage（DRIFT_KEY）。
@@ -767,11 +610,6 @@ const BlogApp = (() => {
         const page = link.dataset.page;
         showPage(page);
         history.pushState({ page }, '', `#${page}`);
-        // 切到留言页时，按当前内容重算输入框高度
-        if (page === 'guestbook') {
-          const gb = document.getElementById('gbMessage');
-          autoGrowTextarea(gb);
-        }
       });
     });
 
@@ -800,7 +638,7 @@ const BlogApp = (() => {
 
     // 初始化各页面
     renderArticles();
-    renderGuestbook();
+    initTwikooGuestbook();
     initDrift();
 
     // 碎碎念卡片键盘可达：方向键移动光标后，Enter / 空格 打开对应文章
@@ -817,47 +655,11 @@ const BlogApp = (() => {
       });
     }
 
-    // 留言表单提交
-    const gbForm = document.getElementById('gbForm');
-    if (gbForm) gbForm.addEventListener('submit', handleGuestbookSubmit);
-
-    // 留言点赞：事件委托（renderGuestbook 每次重渲都会重建节点）
-    const gbListEl = document.getElementById('gbList');
-    if (gbListEl) {
-      gbListEl.addEventListener('click', (e) => {
-        const likeBtn = e.target.closest && e.target.closest('.gb-like');
-        if (!likeBtn) return;
-        const ts = parseInt(likeBtn.dataset.ts, 10);
-        const rec = toggleMsgLike(ts);
-        if (rec) {
-          likeBtn.classList.toggle('liked', rec.liked);
-          const cnt = likeBtn.querySelector('.gb-like-count');
-          if (cnt) cnt.textContent = rec.likes;
-        }
-      });
-    }
-
-    // 留言框自动撑高：输入时下限随内容向下推进
-    const gbMsg = document.getElementById('gbMessage');
-    if (gbMsg) {
-      gbMsg.addEventListener('input', () => autoGrowTextarea(gbMsg));
-      // 首次聚焦也校正一次（若从「凑字」状态切回）
-      gbMsg.addEventListener('focus', () => autoGrowTextarea(gbMsg));
-    }
-
-    // 匿名与署名互斥体验：勾选匿名时禁用昵称输入
-    const anonEl = document.getElementById('gbAnon');
-    const nameEl = document.getElementById('gbName');
-    if (anonEl && nameEl) {
-      anonEl.addEventListener('change', () => {
-        nameEl.disabled = anonEl.checked;
-        if (anonEl.checked) nameEl.value = '';
-      });
-    }
+    // 留言区已由 Twikoo 接管，无需本地事件绑定。
 
     // 初始化翻牌棋盘
     FlipBoard.init();
   }
 
-  return { init, navigateToArticle, renderArticles, renderGuestbook, renderArticleDetail, openDriftModal };
+  return { init, navigateToArticle, renderArticles, renderArticleDetail, openDriftModal };
 })();
