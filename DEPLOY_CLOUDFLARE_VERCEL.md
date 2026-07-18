@@ -45,6 +45,11 @@
    - **Framework preset**：选 **None**（重要，避免 Cloudflare 误判框架去跑 npm build）
    - **Build command**：**留空**
    - **Build output directory**：填 `blog-site`
+
+   ⚠️ **重要**：仓库根目录已提交 `wrangler.jsonc`，其中 `assets.directory` 设为 `blog-site`。
+   因为仓库含 `package.json`，Cloudflare 会通过 `npx wrangler deploy` 部署，**必须**靠这个配置
+   限定只发布 `blog-site` 目录（约 2 MB）；否则它会把整个仓库（含 `node_modules/workerd` 122 MiB）
+   当作静态资源上传，触发 `Asset too large`（>25 MiB）报错。
 4. 点 **Save and Deploy**。几分钟后得到站点地址，形如：
    ```
    https://30daysmusic-blog.pages.dev
