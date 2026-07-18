@@ -167,7 +167,7 @@ const BlogApp = (() => {
   // 已交由 Twikoo 接管（见 initTwikooArticle），原本地评论逻辑已移除。
 
   // ===================== 评论区（Twikoo 评论系统） =====================
-  // 后端：Netlify 云函数（netlify/functions/twikoo），数据存 MongoDB。
+  // 后端：Vercel 云函数（官方 twikoo-vercel 模板），数据存 MongoDB Atlas。
   // 前端 envId 在 index.html 的 window.TWIKOO_ENV_ID 中配置。
   const TWIKOO_ENV = window.TWIKOO_ENV_ID;
 

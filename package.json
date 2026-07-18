@@ -1,5 +1,9 @@
 {
-  "dependencies": {
-    "twikoo-netlify": "1.7.14"
+  "name": "30daysmusic-blogsite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "30天推歌挑战 静态博客。静态站部署到 Cloudflare Pages（构建输出目录 blog-site，无需构建命令）；Twikoo 评论后端部署到 Vercel（官方 twikoo-vercel 模板），数据存 MongoDB Atlas。",
+  "scripts": {
+    "build": "echo 'static site: no build step needed for Cloudflare Pages'"
   }
 }

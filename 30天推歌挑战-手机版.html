@@ -4518,9 +4518,9 @@ const FlipBoard = (() => {
   <!-- Twikoo 评论系统（CDN，defer 保证在 app.js 之前加载） -->
   <script src="https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.all.min.js" defer></script>
   <script>
-    // Twikoo 后端云函数地址：部署到 Netlify 后，把下方占位替换为你的函数 URL
-    // 形如：https://<你的站点>.netlify.app/.netlify/functions/twikoo
-    window.TWIKOO_ENV_ID = 'https://30daysmusic-blog.netlify.app/.netlify/functions/twikoo';
+    // Twikoo 后端地址：部署到 Vercel（官方 twikoo-vercel）后，把下方占位替换为你的 Vercel 域名
+    // 形如：https://<你的 vercel 项目>.vercel.app
+    window.TWIKOO_ENV_ID = 'REPLACE_WITH_VERCEL_TWIKOO_URL';
   </script>
   <script>
 /* ===================== 博客应用主模块 ===================== */
@@ -4692,7 +4692,7 @@ const BlogApp = (() => {
   // 已交由 Twikoo 接管（见 initTwikooArticle），原本地评论逻辑已移除。
 
   // ===================== 评论区（Twikoo 评论系统） =====================
-  // 后端：Netlify 云函数（netlify/functions/twikoo），数据存 MongoDB。
+  // 后端：Vercel 云函数（官方 twikoo-vercel 模板），数据存 MongoDB Atlas。
   // 前端 envId 在 index.html 的 window.TWIKOO_ENV_ID 中配置。
   const TWIKOO_ENV = window.TWIKOO_ENV_ID;
 
