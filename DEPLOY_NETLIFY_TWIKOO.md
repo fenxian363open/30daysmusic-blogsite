@@ -84,6 +84,15 @@
 5. 若你**手动设过 `ACCESS_TOKEN` 环境变量**：确认前端未传错；Twikoo 不强制要求，无把握就删掉它。
 修好后用上面的 curl 命令复查，返回 `code:0` 即连通。
 
+## 排错：code 1001 请更新 Twikoo 云函数至最新版本
+> 函数能响应、MongoDB 也连上了，但返回 `{"code":1001,"message":"请更新 Twikoo 云函数至最新版本"}` —— 这是**前后端版本不一致**：前端 `twikoo@x.x.x` 比部署的函数版本新。
+
+原因与解决：
+- **根因几乎都是 Netlify 构建缓存**：普通 “Trigger deploy / Redeploy” 会复用旧的 `node_modules`，函数仍跑老版本 `twikoo-func`。
+- **正确重部署**：Netlify → *Deploys* → 右上角 **Trigger deploy ▾** → 选 **Clear cache and deploy site**（强制清缓存、重新 `npm install`，拉取 `package.json` 里锁定的 `twikoo-netlify@1.7.14`）。
+- 本工程前端 CDN 与后端依赖都已锁 `1.7.14`，**保持两端同步即可**；升级时记得同时改 `blog-site/index.html` 的 CDN 版本号与根 `package.json` 的 `twikoo-netlify` 版本号。
+- 清缓存重部署后，用上面的 curl 复查应返回 `code:0`。
+
 ## 说明与注意
 - **原有 localStorage 留言不会迁移**：Twikoo 是全新的评论库，从零开始。
 - **没有“悄悄话/仅博主可见”**：Twikoo 为公开评论系统，不支持原来的私密留言概念。
