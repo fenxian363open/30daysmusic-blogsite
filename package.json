@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "@cloudbase/node-sdk": "^3.18.3"
+    "twikoo-netlify": "1.7.14"
   }
 }

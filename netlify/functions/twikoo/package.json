@@ -1,8 +1,0 @@
-{
-  "name": "twikoo-netlify-fn",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "twikoo": "^1.6.41"
-  }
-}
